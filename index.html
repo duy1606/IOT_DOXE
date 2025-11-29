@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Bãi Đỗ Xe Thông Minh - IUH</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700;900&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Roboto', sans-serif; }
+    .slot-free { background: linear-gradient(135deg, #22c55e, #16a34a); box-shadow: 0 8px 16px rgba(34,197,94,0.4); }
+    .slot-occupied { background: linear-gradient(135deg, #ef4444, #dc2626); box-shadow: 0 8px 16px rgba(239,68,68,0.4); }
+    .pulse { animation: pulse 2s infinite; }
+    @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(34,197,94,0.7); } 70% { box-shadow: 0 0 0 12px rgba(34,197,94,0); } 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); } }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 text-white min-h-screen p-4">
+
+  <!-- MÀN HÌNH ĐĂNG NHẬP -->
+  <div id="loginScreen" class="flex items-center justify-center min-h-screen">
+    <div class="bg-gray-800 bg-opacity-90 p-10 rounded-3xl shadow-2xl w-full max-w-md">
+      <h2 class="text-4xl font-bold text-center mb-8 text-cyan-400">Smartparking</h2>
+      <input type="text" id="username" placeholder="Tên đăng nhập" class="w-full p-4 mb-4 rounded-lg bg-gray-700 text-white text-lg" autocomplete="username">
+      <input type="password" id="password" placeholder="Mật khẩu" class="w-full p-4 mb-6 rounded-lg bg-gray-700 text-white text-lg" autocomplete="current-password">
+      <button onclick="login()" class="w-full bg-gradient-to-r from-cyan-500 to-teal-600 py-4 rounded-lg font-bold text-xl hover:from-cyan-600 hover:to-teal-700 transition">
+        ĐĂNG NHẬP
+      </button>
+      <p class="text-center mt-4 text-sm text-gray-400">
+        Quên mật khẩu? <span onclick="showChangePass()" class="text-cyan-400 cursor-pointer hover:underline">Đổi mật khẩu</span>
+      </p>
+    </div>
+  </div>
+
+  <!-- MÀN HÌNH ĐỔI MẬT KHẨU -->
+  <div id="changePassScreen" class="flex items-center justify-center min-h-screen hidden">
+    <div class="bg-gray-800 bg-opacity-90 p-10 rounded-3xl shadow-2xl w-full max-w-md">
+      <h2 class="text-4xl font-bold text-center mb-8 text-red-400">ĐỔI MẬT KHẨU</h2>
+      <input type="password" id="oldPass" placeholder="Mật khẩu cũ" class="w-full p-4 mb-4 rounded-lg bg-gray-700 text-white text-lg">
+      <input type="password" id="newPass" placeholder="Mật khẩu mới" class="w-full p-4 mb-4 rounded-lg bg-gray-700 text-white text-lg">
+      <input type="password" id="confirmPass" placeholder="Nhập lại mật khẩu mới" class="w-full p-4 mb-6 rounded-lg bg-gray-700 text-white text-lg">
+      <div class="flex gap-4">
+        <button onclick="changePassword()" class="flex-1 bg-green-600 py-4 rounded-lg font-bold hover:bg-green-700">XÁC NHẬN</button>
+        <button onclick="hideChangePass()" class="flex-1 bg-gray-600 py-4 rounded-lg font-bold hover:bg-gray-700">HỦY</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GIAO DIỆN CHÍNH -->
+  <div id="mainScreen" class="max-w-5xl mx-auto hidden">
+    <div class="flex justify-center mt-10 mb-8">
+      <svg width="800" height="120" viewBox="0 0 800 120" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-4xl">
+        <defs>
+          <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" style="stop-color:#0d9488" />
+            <stop offset="100%" style="stop-color:#14b8a6" />
+          </linearGradient>
+        </defs>
+        <text x="400" y="82" font-family="Roboto, Arial, sans-serif" font-weight="900"
+              font-size="68" fill="url(#grad)" text-anchor="middle" letter-spacing="2"
+              style="filter: drop-shadow(0 6px 12px rgba(0,0,0,0.8));">
+          BÃI ĐỖ XE THÔNG MINH
+        </text>
+      </svg>
+    </div>
+
+    <div class="text-center mb-6 flex justify-center items-center gap-4">
+      <span class="text-yellow-400 font-bold text-lg">
+        Trạng thái: <span id="status" class="text-red-500">Đang kết nối...</span>
+      </span>
+      <button onclick="logout()" class="text-sm bg-red-600 px-4 py-2 rounded-lg hover:bg-red-700">Đăng xuất</button>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+      <button onclick="openGate()" class="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold text-3xl py-10 rounded-2xl shadow-xl transform hover:scale-105 transition">
+        MỞ CỔNG
+      </button>
+      <button onclick="closeGate()" class="bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white font-bold text-3xl py-10 rounded-2xl shadow-xl transform hover:scale-105 transition">
+        ĐÓNG CỔNG
+      </button>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+      <div class="bg-gray-800 bg-opacity-80 backdrop-blur-lg p-8 rounded-2xl text-center">
+        <h2 class="text-2xl font-bold mb-3 text-gray-300">CHỖ TRỐNG</h2>
+        <p id="empty" class="text-7xl font-extrabold text-green-400 pulse">4</p>
+      </div>
+      <div class="bg-gray-800 bg-opacity-80 backdrop-blur-lg p-8 rounded-2xl text-center">
+        <h2 class="text-2xl font-bold mb-3 text-gray-300">ĐÃ ĐỖ</h2>
+        <p id="occupied" class="text-7xl font-extrabold text-red-400">0</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-6">
+      <div id="slot1" class="slot-free p-8 rounded-2xl text-center text-3xl font-bold shadow-xl transform hover:scale-105 transition">SLOT 1<br><span class="text-xl">TRỐNG</span></div>
+      <div id="slot2" class="slot-free p-8 rounded-2xl text-center text-3xl font-bold shadow-xl transform hover:scale-105 transition">SLOT 2<br><span class="text-xl">TRỐNG</span></div>
+      <div id="slot3" class="slot-free p-8 rounded-2xl text-center text-3xl font-bold shadow-xl transform hover:scale-105 transition">SLOT 3<br><span class="text-xl">TRỐNG</span></div>
+      <div id="slot4" class="slot-free p-8 rounded-2xl text-center text-3xl font-bold shadow-xl transform hover:scale-105 transition">SLOT 4<br><span class="text-xl">TRỐNG</span></div>
+    </div>
+
+    <div class="text-center mt-12 text-gray-400 text-sm">
+      © 2025 - Đồ án Smart Parking - Nhóm IUH
+    </div>
+  </div>
+
+  <script>
+    // === BIẾN TOÀN CỤC ===
+    let client = null; // Biến MQTT toàn cục
+
+    // Tài khoản mặc định
+    const defaultUser = { username: "nhomiot", password: "123456" };
+
+    // Kiểm tra đã đăng nhập chưa
+    if (localStorage.getItem("parkingUser")) {
+      document.getElementById("loginScreen").classList.add("hidden");
+      document.getElementById("mainScreen").classList.remove("hidden");
+      startMQTT();
+    }
+
+    function login() {
+      const user = JSON.parse(localStorage.getItem("parkingUser") || JSON.stringify(defaultUser));
+      const inputUser = document.getElementById("username").value.trim();
+      const inputPass = document.getElementById("password").value;
+
+      if (inputUser === user.username && inputPass === user.password) {
+        document.getElementById("loginScreen").classList.add("hidden");
+        document.getElementById("mainScreen").classList.remove("hidden");
+        startMQTT();
+      } else {
+        alert("Sai tên đăng nhập hoặc mật khẩu!");
+      }
+    }
+
+    function logout() {
+      if (client) client.end();
+      document.getElementById("mainScreen").classList.add("hidden");
+      document.getElementById("loginScreen").classList.remove("hidden");
+      document.getElementById("username").value = "";
+      document.getElementById("password").value = "";
+      document.getElementById("status").innerText = "Đang kết nối...";
+      document.getElementById("status").style.color = "#ef4444";
+    }
+
+    function showChangePass() {
+      document.getElementById("loginScreen").classList.add("hidden");
+      document.getElementById("changePassScreen").classList.remove("hidden");
+    }
+
+    function hideChangePass() {
+      document.getElementById("changePassScreen").classList.add("hidden");
+      document.getElementById("loginScreen").classList.remove("hidden");
+      document.getElementById("oldPass").value = "";
+      document.getElementById("newPass").value = "";
+      document.getElementById("confirmPass").value = "";
+    }
+
+    function changePassword() {
+      const oldPass = document.getElementById("oldPass").value;
+      const newPass = document.getElementById("newPass").value;
+      const confirmPass = document.getElementById("confirmPass").value;
+      const user = JSON.parse(localStorage.getItem("parkingUser") || JSON.stringify(defaultUser));
+
+      if (oldPass !== user.password) return alert("Mật khẩu cũ không đúng!");
+      if (newPass !== confirmPass) return alert("Mật khẩu mới không khớp!");
+      if (newPass.length < 4) return alert("Mật khẩu mới phải ít nhất 4 ký tự!");
+
+      localStorage.setItem("parkingUser", JSON.stringify({ username: user.username, password: newPass }));
+      alert("Đổi mật khẩu thành công!");
+      hideChangePass();
+    }
+
+    // === MQTT ===
+    function startMQTT() {
+      client = mqtt.connect("wss://d0689695d5cd4fb0b70cab985cfa6a0e.s1.eu.hivemq.cloud:8884/mqtt", {
+        username: "anhdung",
+        password: "Anhdung2400@"
+      });
+
+      client.on("connect", () => {
+        document.getElementById("status").innerText = "ĐÃ KẾT NỐI";
+        document.getElementById("status").style.color = "#22c55e";
+        client.subscribe("smartparking/status");
+      });
+
+      client.on("error", () => {
+        document.getElementById("status").innerText = "LỖI KẾT NỐI";
+        document.getElementById("status").style.color = "#ef4444";
+      });
+
+      client.on("message", (topic, message) => {
+        if (topic !== "smartparking/status") return;
+        try {
+          const data = JSON.parse(message.toString());
+          document.getElementById("empty").innerText = data.empty;
+          document.getElementById("occupied").innerText = data.occupied;
+
+          for (let i = 1; i <= 4; i++) {
+            const slot = document.getElementById("slot" + i);
+            if (data.slots[i-1]) {
+              slot.classList.remove("slot-free");
+              slot.classList.add("slot-occupied");
+              slot.innerHTML = `SLOT ${i}<br><span class="text-xl">ĐÃ ĐỖ</span>`;
+            } else {
+              slot.classList.remove("slot-occupied");
+              slot.classList.add("slot-free");
+              slot.innerHTML = `SLOT ${i}<br><span class="text-xl">TRỐNG</span>`;
+            }
+          }
+        } catch (e) {
+          console.error("Lỗi parse JSON:", e);
+        }
+      });
+    }
+
+    function openGate() {
+      if (client && client.connected) {
+        client.publish("smartparking/gate/open", "1");
+        alert("ĐÃ GỬI LỆNH MỞ CỔNG!");
+      } else {
+        alert("Chưa kết nối MQTT!");
+      }
+    }
+
+    function closeGate() {
+      if (client && client.connected) {
+        client.publish("smartparking/gate/close", "1");
+        alert("ĐÃ GỬI LỆNH ĐÓNG CỔNG!");
+      } else {
+        alert("Chưa kết nối MQTT!");
+      }
+    }
+  </script>
+</body>
+</html>
